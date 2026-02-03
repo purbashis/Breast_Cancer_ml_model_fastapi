@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Breast Cancer Risk Assessment</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-100 dark:bg-gray-900 min-h-screen flex items-center justify-center transition-colors">
+
+    <div class="bg-white dark:bg-gray-800 shadow-xl rounded-xl p-8 w-full max-w-3xl text-gray-900 dark:text-gray-100">
+
+        <!-- Header -->
+        <div class="flex justify-between items-center mb-4">
+            <h1 class="text-2xl font-bold">🧠 Breast Cancer Risk Assessment</h1>
+
+            <!-- Toggle -->
+            <label class="flex items-center cursor-pointer">
+                <span class="mr-2 text-sm">🌞</span>
+                <input type="checkbox" id="themeToggle" class="sr-only">
+                <div class="w-11 h-6 bg-gray-300 rounded-full p-1 transition">
+                    <div id="toggleDot" class="w-4 h-4 bg-white rounded-full transition"></div>
+                </div>
+                <span class="ml-2 text-sm">🌙</span>
+            </label>
+        </div>
+
+        <p class="text-gray-600 dark:text-gray-400 text-center mb-6">
+            AI-assisted analysis based on clinical tumor measurements
+        </p>
+
+        <!-- Inputs -->
+        <h2 class="font-semibold mb-2">Tumor Characteristics</h2>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            Doctors: enter measured values · Patients: refer to lab reports
+        </p>
+
+        <div class="grid grid-cols-2 gap-4">
+            <div class="field"><label>Mean Radius</label><input id="mean_radius" /></div>
+            <div class="field"><label>Mean Texture</label><input id="mean_texture" /></div>
+            <div class="field"><label>Mean Perimeter</label><input id="mean_perimeter" /></div>
+            <div class="field"><label>Mean Area</label><input id="mean_area" /></div>
+            <div class="field"><label>Mean Smoothness</label><input id="mean_smoothness" /></div>
+            <div class="field"><label>Mean Compactness</label><input id="mean_compactness" /></div>
+            <div class="field"><label>Mean Concavity</label><input id="mean_concavity" /></div>
+            <div class="field"><label>Mean Concave Points</label><input id="mean_concave_points" /></div>
+            <div class="field"><label>Mean Symmetry</label><input id="mean_symmetry" /></div>
+            <div class="field"><label>Mean Fractal Dimension</label><input id="mean_fractal_dimension" /></div>
+        </div>
+
+        <!-- Error -->
+        <p id="error" class="text-red-500 text-sm mt-4 hidden"></p>
+
+        <!-- Buttons -->
+        <div class="flex gap-4 mt-6">
+            <button onclick="loadSample()" class="btn bg-gray-200 dark:bg-gray-700">
+                Load Sample
+            </button>
+            <button onclick="resetForm()" class="btn bg-yellow-400 text-black">
+                Reset
+            </button>
+            <button onclick="predict()" class="btn bg-blue-600 text-white">
+                Analyze Risk
+            </button>
+        </div>
+
+        <!-- Result -->
+        <div id="result" class="mt-8 hidden text-center">
+            <h2 id="prediction" class="text-2xl font-bold"></h2>
+            <p id="confidence" class="text-gray-600 dark:text-gray-400 mt-2"></p>
+            <div id="explanation" class="mt-4 text-sm"></div>
+        </div>
+
+        <!-- Disclaimer -->
+        <div class="mt-8 text-xs text-gray-500 dark:text-gray-400 border-t pt-4">
+            ⚠️ Educational use only. Not a medical diagnosis.
+        </div>
+    </div>
+
+    <!-- Script -->
+    <script>
+        // ------------------ THEME TOGGLE ------------------
+        const toggle = document.getElementById("themeToggle");
+        const dot = document.getElementById("toggleDot");
+
+        function applyTheme(isDark) {
+            document.documentElement.classList.toggle("dark", isDark);
+            dot.style.transform = isDark ? "translateX(20px)" : "translateX(0)";
+            localStorage.setItem("theme", isDark ? "dark" : "light");
+        }
+
+        toggle.addEventListener("change", () => applyTheme(toggle.checked));
+
+        // Load saved theme
+        const saved = localStorage.getItem("theme");
+        if (saved === "dark") {
+            toggle.checked = true;
+            applyTheme(true);
+        }
+
+        // ------------------ FORM ------------------
+        function loadSample() {
+            mean_radius.value = 17.99;
+            mean_texture.value = 10.38;
+            mean_perimeter.value = 122.8;
+            mean_area.value = 1001;
+            mean_smoothness.value = 0.1184;
+            mean_compactness.value = 0.2776;
+            mean_concavity.value = 0.3001;
+            mean_concave_points.value = 0.1471;
+            mean_symmetry.value = 0.2419;
+            mean_fractal_dimension.value = 0.07871;
+        }
+
+        function resetForm() {
+            document.querySelectorAll("input[type='text'], input:not([type])")
+                .forEach(i => i.value = "");
+            document.getElementById("result").classList.add("hidden");
+            document.getElementById("error").classList.add("hidden");
+        }
+
+        async function predict() {
+            const fields = [
+                "mean_radius", "mean_texture", "mean_perimeter", "mean_area",
+                "mean_smoothness", "mean_compactness", "mean_concavity",
+                "mean_concave_points", "mean_symmetry", "mean_fractal_dimension"
+            ];
+
+            const payload = {};
+            for (const f of fields) {
+                const val = document.getElementById(f).value;
+                if (val === "" || isNaN(val)) {
+                    showError("Please fill all fields with valid numeric values.");
+                    return;
+                }
+                payload[f] = Number(val);
+            }
+
+            hideError();
+
+            const res = await fetch("/predict", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await res.json();
+
+            document.getElementById("result").classList.remove("hidden");
+
+            const p = document.getElementById("prediction");
+            const e = document.getElementById("explanation");
+            const c = document.getElementById("confidence");
+
+            if (data.prediction === "Benign") {
+                p.textContent = "🟢 Benign (Non-cancerous)";
+                p.className = "text-2xl font-bold text-green-500";
+                e.innerHTML = "<b>Layman:</b> Low risk.<br><b>Medical:</b> Benign neoplasm.";
+            } else {
+                p.textContent = "🔴 Malignant (Cancerous)";
+                p.className = "text-2xl font-bold text-red-500";
+                e.innerHTML = "<b>Layman:</b> High risk.<br><b>Medical:</b> Malignant neoplasm.";
+            }
+
+            c.textContent = `Model Confidence: ${(data.probability * 100).toFixed(1)}%`;
+        }
+
+        function showError(msg) {
+            const e = document.getElementById("error");
+            e.textContent = msg;
+            e.classList.remove("hidden");
+        }
+
+        function hideError() {
+            document.getElementById("error").classList.add("hidden");
+        }
+    </script>
+
+    <!-- Styles -->
+    <style>
+        .field label {
+            font-size: 0.85rem;
+            color: #6b7280;
+        }
+
+        .field input {
+            width: 100%;
+            padding: 0.6rem;
+            border-radius: 0.5rem;
+            border: 1px solid #d1d5db;
+            background: transparent;
+            color: inherit;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 0.6rem;
+            border-radius: 0.5rem;
+            font-weight: 500;
+            transition: opacity 0.2s;
+        }
+
+        .btn:hover {
+            opacity: 0.9;
+        }
+    </style>
+
+</body>
+
+</html>
